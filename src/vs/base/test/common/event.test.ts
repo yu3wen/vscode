@@ -9,6 +9,7 @@ import { errorHandler, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { AsyncEmitter, DebounceEmitter, Emitter, Event, EventBufferer, EventMultiplexer, IWaitUntil, MicrotaskEmitter, PauseableEmitter, Relay } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, isDisposable, setDisposableTracker, toDisposable } from 'vs/base/common/lifecycle';
 import { observableValue, transaction } from 'vs/base/common/observable';
+import { MicrotaskDelay } from 'vs/base/common/symbols';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { DisposableTracker, ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
@@ -270,6 +271,39 @@ suite('Event', function () {
 		doc.setText('3');
 	});
 
+
+	test('Debounce Event (microtask)', function (done: () => void) {
+		const doc = new Samples.Document3();
+
+		const onDocDidChange = Event.debounce(doc.onDidChange, (prev: string[] | undefined, cur) => {
+			if (!prev) {
+				prev = [cur];
+			} else if (prev.indexOf(cur) < 0) {
+				prev.push(cur);
+			}
+			return prev;
+		}, MicrotaskDelay);
+
+		let count = 0;
+
+		onDocDidChange(keys => {
+			count++;
+			assert.ok(keys, 'was not expecting keys.');
+			if (count === 1) {
+				doc.setText('4');
+				assert.deepStrictEqual(keys, ['1', '2', '3']);
+			} else if (count === 2) {
+				assert.deepStrictEqual(keys, ['4']);
+				done();
+			}
+		});
+
+		doc.setText('1');
+		doc.setText('2');
+		doc.setText('3');
+	});
+
+
 	test('Debounce Event - leading', async function () {
 		const emitter = new Emitter<void>();
 		const debounced = Event.debounce(emitter.event, (l, e) => e, 0, /*leading=*/true);
@@ -286,7 +320,7 @@ suite('Event', function () {
 		assert.strictEqual(calls, 1);
 	});
 
-	test('Debounce Event - leading', async function () {
+	test('Debounce Event - leading (2)', async function () {
 		const emitter = new Emitter<void>();
 		const debounced = Event.debounce(emitter.event, (l, e) => e, 0, /*leading=*/true);
 
@@ -1104,5 +1138,48 @@ suite('Event utils', () => {
 			{ label: 'disposeAll' },
 			{ label: 'dispose', idx: 1 },
 		]);
+	});
+
+	suite('accumulate', () => {
+		test('should accumulate a single event', async () => {
+			const eventEmitter = new Emitter<number>();
+			const event = eventEmitter.event;
+			const accumulated = Event.accumulate(event, 0);
+
+			const results1 = await new Promise<number[]>(r => {
+				accumulated(r);
+				eventEmitter.fire(1);
+			});
+			assert.deepStrictEqual(results1, [1]);
+
+			const results2 = await new Promise<number[]>(r => {
+				accumulated(r);
+				eventEmitter.fire(2);
+			});
+			assert.deepStrictEqual(results2, [2]);
+		});
+		test('should accumulate multiple events', async () => {
+			const eventEmitter = new Emitter<number>();
+			const event = eventEmitter.event;
+			const accumulated = Event.accumulate(event, 0);
+
+			const results1 = await new Promise<number[]>(r => {
+				accumulated(r);
+				eventEmitter.fire(1);
+				eventEmitter.fire(2);
+				eventEmitter.fire(3);
+			});
+			assert.deepStrictEqual(results1, [1, 2, 3]);
+
+			const results2 = await new Promise<number[]>(r => {
+				accumulated(r);
+				eventEmitter.fire(4);
+				eventEmitter.fire(5);
+				eventEmitter.fire(6);
+				eventEmitter.fire(7);
+				eventEmitter.fire(8);
+			});
+			assert.deepStrictEqual(results2, [4, 5, 6, 7, 8]);
+		});
 	});
 });

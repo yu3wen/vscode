@@ -147,6 +147,8 @@ export interface IWorkbenchConstructionOptions {
 
 	/**
 	 * A provider for resource URIs.
+	 *
+	 * *Note*: This will only be invoked after the `connectionToken` is resolved.
 	 */
 	readonly resourceUriProvider?: IResourceUriProvider;
 
@@ -170,12 +172,6 @@ export interface IWorkbenchConstructionOptions {
 	 * The identifier of an edit session associated with the current workspace.
 	 */
 	readonly editSessionId?: string;
-
-	/**
-	 * [TEMPORARY]: This will be removed soon.
-	 * Endpoints to be used for proxying repository tarball download calls in the browser.
-	 */
-	readonly _tarballProxyEndpoints?: { [providerId: string]: string };
 
 	//#endregion
 
@@ -258,6 +254,15 @@ export interface IWorkbenchConstructionOptions {
 	 * Optional configuration default overrides contributed to the workbench.
 	 */
 	readonly configurationDefaults?: Record<string, any>;
+
+	//#endregion
+
+	//#region Profile options
+
+	/**
+	 * URI of the profile to preview.
+	 */
+	readonly profileToPreview?: UriComponents;
 
 	//#endregion
 
